@@ -33,10 +33,17 @@ func newPlayer(index int64, isArtificial bool, useMemory bool) *player {
 	player.useMemory = useMemory
 	player.isArtificial = isArtificial
 	player.attributes = make([]int64, attributesCount)
-	player.attributes[0] = 16
-	player.attributes[1] = 0
-	player.attributes[2] = 0
-	player.attributes[3] = 0
+	if player.index == 0 {
+		player.attributes[0] = 32
+		player.attributes[1] = 0
+		player.attributes[2] = 0
+		player.attributes[3] = 0
+	} else {
+		player.attributes[0] = 32
+		player.attributes[1] = 8
+		player.attributes[2] = 4
+		player.attributes[3] = 8
+	}
 	if useMemory {
 		player.memory = loadMemory("general.json")
 	} else {
@@ -58,6 +65,7 @@ func distance(a, b int64) int64 {
 }
 
 func (player *player) think() int64 {
+	//fmt.Println("player", player.index)
 	weights := make([]int64, playsCount)
 	winnerWeight := int64(0)
 	for _, gameMemory := range player.memory {
@@ -82,13 +90,16 @@ func (player *player) think() int64 {
 			if turnMemory.turn%2 == player.index {
 				if player.index == 0 {
 					for attributeIndex := int64(0); attributeIndex < attributesCount; attributeIndex++ {
-						weights[turnMemory.play] += winnerWeight * 256 / (distance(turnMemory.attributes[0][attributeIndex], player.attributes[attributeIndex]) + 512)
-						weights[turnMemory.play] += winnerWeight * 256 / (distance(turnMemory.attributes[1][attributeIndex], player.enemy.attributes[attributeIndex]) + 512)
+						weights[turnMemory.play] += winnerWeight * 256 / (distance(turnMemory.attributes[0][attributeIndex], player.attributes[attributeIndex]) + 1)
+						//fmt.Println("weights", turnMemory.play, "value", weights[turnMemory.play])
+
+						weights[turnMemory.play] += winnerWeight * 256 / (distance(turnMemory.attributes[1][attributeIndex], player.enemy.attributes[attributeIndex]) + 1)
+						//fmt.Println("weights", turnMemory.play, "value", weights[turnMemory.play])
 					}
 				} else {
 					for attributeIndex := int64(0); attributeIndex < attributesCount; attributeIndex++ {
-						weights[turnMemory.play] += winnerWeight * 256 / (distance(turnMemory.attributes[1][attributeIndex], player.attributes[attributeIndex]) + 512)
-						weights[turnMemory.play] += winnerWeight * 256 / (distance(turnMemory.attributes[0][attributeIndex], player.enemy.attributes[attributeIndex]) + 512)
+						weights[turnMemory.play] += winnerWeight * 256 / (distance(turnMemory.attributes[1][attributeIndex], player.attributes[attributeIndex]) + 1)
+						weights[turnMemory.play] += winnerWeight * 256 / (distance(turnMemory.attributes[0][attributeIndex], player.enemy.attributes[attributeIndex]) + 1)
 					}
 				}
 			}
@@ -100,6 +111,13 @@ func (player *player) think() int64 {
 			bestPlay = playIndex
 		}
 	}
+	/*
+		fmt.Println("player", player.index)
+		for playIndex := int64(0); playIndex < playsCount; playIndex++ {
+			fmt.Println("weights", playIndex, "value", weights[playIndex])
+
+		}
+	*/
 	return bestPlay
 }
 
@@ -167,7 +185,7 @@ func newGame() *game {
 	game.winner = -1
 	game.players = make([]*player, playersCount)
 	game.players[0] = newPlayer(0, true, true)
-	game.players[1] = newPlayer(1, true, true)
+	game.players[1] = newPlayer(1, true, false)
 	game.players[0].enemy = game.players[1]
 	game.players[1].enemy = game.players[0]
 	game.memory = newGameMemory(-1, 0)
@@ -202,19 +220,17 @@ func (game *game) applyPlay() {
 	switch game.currentPlay {
 	case 0:
 		game.changeCurrentPlayerAttribute(0, 256)
-		game.changeCurrentEnemyAttribute(2, -32)
-		game.changeCurrentEnemyAttribute(3, -32)
 	case 1:
-		game.changeCurrentPlayerAttribute(2, 16)
-		game.changeCurrentPlayerAttribute(3, 32+4)
+		game.changeCurrentPlayerAttribute(2, 24+8)
+		game.changeCurrentPlayerAttribute(3, 24+4)
 
 	case 2:
-		game.changeCurrentPlayerAttribute(1, 8)
+		game.changeCurrentPlayerAttribute(1, 16)
 		game.changeCurrentPlayerAttribute(2, 32)
-		game.changeCurrentEnemyAttribute(1, -8)
+		game.changeCurrentEnemyAttribute(1, -16)
 	case 3:
-		offset := (game.getCurrentPlayerAttribute(2)*24+game.getCurrentPlayerAttribute(3)*24)*32 - (game.getCurrentEnemyAttribute(1)*12+game.getCurrentEnemyAttribute(2)*12)*16
-		game.changeCurrentEnemyAttribute(0, -offset*(64+32))
+		offset := (game.getCurrentPlayerAttribute(2)*1+game.getCurrentPlayerAttribute(3)*2)*2 - (game.getCurrentEnemyAttribute(1)*2+game.getCurrentEnemyAttribute(2)*1)*1
+		game.changeCurrentEnemyAttribute(0, -offset)
 	default:
 		panic("Unknown play")
 	}
@@ -426,7 +442,7 @@ func printMemory() {
 }
 
 func main() {
-	for i := 0; i < 16; i++ {
+	for i := 0; i < 32; i++ {
 		fmt.Println("game", i)
 		game := newGame()
 		game.run()

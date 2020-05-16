@@ -19,23 +19,98 @@ var randomSource rand.Source = rand.NewSource(time.Now().UnixNano())
 var random *rand.Rand = rand.New(randomSource)
 
 type player struct {
-	index      int64
-	attributes []int64
+	enemy        *player
+	index        int64
+	isArtificial bool
+	useMemory    bool
+	memory       []*gameMemory
+	attributes   []int64
 }
 
-func newPlayer(index int64) *player {
+func newPlayer(index int64, isArtificial bool, useMemory bool) *player {
 	player := new(player)
 	player.index = index
+	player.useMemory = useMemory
+	player.isArtificial = isArtificial
 	player.attributes = make([]int64, attributesCount)
 	player.attributes[0] = 16
 	player.attributes[1] = 0
 	player.attributes[2] = 0
 	player.attributes[3] = 0
+	if useMemory {
+		player.memory = loadMemory("general.json")
+	} else {
+		player.memory = make([]*gameMemory, 0)
+	}
 	return player
 }
 
+func distance(a, b int64) int64 {
+	var big, small int64
+	if a < b {
+		big = b
+		small = a
+	} else {
+		big = a
+		small = b
+	}
+	return big - small
+}
+
+func (player *player) think() int64 {
+	weights := make([]int64, playsCount)
+	winnerWeight := int64(0)
+	for _, gameMemory := range player.memory {
+		if player.index == 0 {
+			if gameMemory.winner == 0 {
+				winnerWeight = 4
+			} else if gameMemory.winner == 1 {
+				winnerWeight = -4
+			} else {
+				winnerWeight = -1
+			}
+		} else {
+			if gameMemory.winner == 0 {
+				winnerWeight = -4
+			} else if gameMemory.winner == 1 {
+				winnerWeight = 4
+			} else {
+				winnerWeight = -1
+			}
+		}
+		for _, turnMemory := range gameMemory.turnsMemory {
+			if turnMemory.turn%2 == player.index {
+				if player.index == 0 {
+					for attributeIndex := int64(0); attributeIndex < attributesCount; attributeIndex++ {
+						weights[turnMemory.play] += winnerWeight * 256 / (distance(turnMemory.attributes[0][attributeIndex], player.attributes[attributeIndex]) + 512)
+						weights[turnMemory.play] += winnerWeight * 256 / (distance(turnMemory.attributes[1][attributeIndex], player.enemy.attributes[attributeIndex]) + 512)
+					}
+				} else {
+					for attributeIndex := int64(0); attributeIndex < attributesCount; attributeIndex++ {
+						weights[turnMemory.play] += winnerWeight * 256 / (distance(turnMemory.attributes[1][attributeIndex], player.attributes[attributeIndex]) + 512)
+						weights[turnMemory.play] += winnerWeight * 256 / (distance(turnMemory.attributes[0][attributeIndex], player.enemy.attributes[attributeIndex]) + 512)
+					}
+				}
+			}
+		}
+	}
+	bestPlay := int64(0)
+	for playIndex := int64(1); playIndex < playsCount; playIndex++ {
+		if weights[bestPlay] < weights[playIndex] {
+			bestPlay = playIndex
+		}
+	}
+	return bestPlay
+}
+
 func (player *player) play() int64 {
-	return int64(random.Intn(int(playsCount)))
+	if player.isArtificial {
+		if !player.useMemory || len(player.memory) == 0 {
+			return int64(random.Intn(int(playsCount)))
+		}
+		return player.think()
+	}
+	return 0
 }
 
 func (player *player) changeAttribute(attributeIndex, offset int64) {
@@ -91,9 +166,10 @@ func newGame() *game {
 	game.shouldRun = true
 	game.winner = -1
 	game.players = make([]*player, playersCount)
-	for playerIndex := int64(0); playerIndex < playersCount; playerIndex++ {
-		game.players[playerIndex] = newPlayer(playerIndex)
-	}
+	game.players[0] = newPlayer(0, true, true)
+	game.players[1] = newPlayer(1, true, true)
+	game.players[0].enemy = game.players[1]
+	game.players[1].enemy = game.players[0]
 	game.memory = newGameMemory(-1, 0)
 	return game
 }
@@ -350,7 +426,7 @@ func printMemory() {
 }
 
 func main() {
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 16; i++ {
 		fmt.Println("game", i)
 		game := newGame()
 		game.run()

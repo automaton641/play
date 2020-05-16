@@ -13,6 +13,7 @@ const playersCount int64 = 2
 const attributesCount int64 = 4
 const playsCount int64 = 4
 const attributesLimit int64 = 1024
+const turnsLimit int64 = 32
 
 var randomSource rand.Source = rand.NewSource(time.Now().UnixNano())
 var random *rand.Rand = rand.New(randomSource)
@@ -247,7 +248,7 @@ func (game *game) checkWinner() {
 	} else if lifes[1] <= 0 {
 		game.winner = 0
 		return
-	} else if game.turn >= 16 {
+	} else if game.turn >= turnsLimit {
 		game.fightDraw(lifes)
 		return
 	}
@@ -309,11 +310,50 @@ func loadMemory(fileName string) []*gameMemory {
 
 func printMemory() {
 	memory := loadMemory("general.json")
-	fmt.Println(memory)
+	wins := make([]int64, 2)
+	draws := int64(0)
+	gamesCount := int64(0)
+	averageTurnsAccumulator := float64(0)
+	plays := make([][]int64, 2)
+	for playerIndex := int64(0); playerIndex < playersCount; playerIndex++ {
+		plays[playerIndex] = make([]int64, playsCount)
+	}
+	for _, gameMemory := range memory {
+		if gameMemory.winner == 2 {
+			draws++
+		} else {
+			wins[gameMemory.winner]++
+		}
+		averageTurnsAccumulator += float64(gameMemory.turns) / float64(len(memory))
+		gamesCount++
+		for _, turnMemory := range gameMemory.turnsMemory {
+			playerIndex := turnMemory.turn % playersCount
+			plays[playerIndex][turnMemory.play]++
+		}
+	}
+	winRate := float64(wins[0]) / float64(wins[0]+wins[1])
+	realWinRate := float64(wins[0]) / float64(wins[0]+wins[1]+draws)
+	averageTurns := int64(averageTurnsAccumulator)
+	fmt.Println("gamesCount", gamesCount)
+	fmt.Println("averageTurns", averageTurns)
+	fmt.Println("wins[0]", wins[0])
+	fmt.Println("wins[1]", wins[1])
+	fmt.Println("draws", draws)
+	fmt.Println("winRate", winRate)
+	fmt.Println("realWinRate", realWinRate)
+	for playerIndex, playerPlays := range plays {
+		fmt.Println("player", playerIndex)
+		for playIndex, playCount := range playerPlays {
+			fmt.Println("play", playIndex, "count", playCount)
+		}
+	}
 }
 
 func main() {
-	//game := newGame()
-	//game.run()
+	for i := 0; i < 1; i++ {
+		fmt.Println("game", i)
+		game := newGame()
+		game.run()
+	}
 	printMemory()
 }

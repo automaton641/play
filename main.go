@@ -270,7 +270,50 @@ func (game *game) run() {
 	game.saveMemoryJSON()
 }
 
+func loadMemory(fileName string) []*gameMemory {
+	memory, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		if err.Error() == "open "+fileName+": no such file or directory" {
+			fmt.Println("error: no such file or directory")
+			return make([]*gameMemory, 0)
+		}
+		panic(err.Error())
+	}
+	memoryArray := make([]interface{}, 0)
+	json.Unmarshal(memory, &memoryArray)
+	loadedMemory := make([]*gameMemory, 0)
+	for _, game := range memoryArray {
+		gameMap := game.(map[string]interface{})
+		gameWinner := int64(gameMap["winner"].(float64))
+		gameTurns := int64(gameMap["turns"].(float64))
+		gameMemory := newGameMemory(gameWinner, gameTurns)
+		gameTurnsMemory := gameMap["turnsMemory"].([]interface{})
+		for _, turn := range gameTurnsMemory {
+			turnMap := turn.(map[string]interface{})
+			turnTurn := int64(turnMap["turn"].(float64))
+			turnPlay := int64(turnMap["play"].(float64))
+			turnAttributes := make([][]int64, playersCount)
+			for playerIndex, turnPlayerAttributes := range turnMap["attributes"].([]interface{}) {
+				turnAttributes[playerIndex] = make([]int64, attributesCount)
+				for attributeIndex, attribute := range turnPlayerAttributes.([]interface{}) {
+					turnAttributes[playerIndex][attributeIndex] = int64(attribute.(float64))
+				}
+			}
+			turnMemory := newTurnMemory(turnTurn, turnPlay, turnAttributes)
+			gameMemory.turnsMemory = append(gameMemory.turnsMemory, turnMemory)
+		}
+		loadedMemory = append(loadedMemory, gameMemory)
+	}
+	return loadedMemory
+}
+
+func printMemory() {
+	memory := loadMemory("general.json")
+	fmt.Println(memory)
+}
+
 func main() {
-	game := newGame()
-	game.run()
+	//game := newGame()
+	//game.run()
+	printMemory()
 }
